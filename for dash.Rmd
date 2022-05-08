@@ -1,0 +1,255 @@
+---
+title: "for dash"
+output: html_document
+date: '2022-05-01'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(plotly)    
+```
+
+
+```{r}
+spot <- read.csv('Spotify Top 200 Global (2017-2021).csv')
+spot$Week <- as.Date.character(spot$Week)
+spot<-as.data.frame(spot)
+```
+
+
+```{r}
+star <- spot[spot$Track=='September Song',]
+```
+ 
+```{r}
+c <- ggplot(star, aes(x=Week, y=Streams)) + geom_area(fill="#69b3a2", alpha=0.5) +
+  geom_line(color="#69b3a2")
+```
+
+```{r}
+p <- ggplotly(c)
+p
+```
+```{r}
+c1 <-  ggplot(star, aes(x=Week, y=Rank)) + geom_area(fill="#69b3a2", alpha=0.5) +
+  geom_line(color="#69b3a2")
+p1 <- ggplotly(c1)
+p1
+```
+
+```{r}
+n_distinct(spot$Week)
+```
+```{r}
+a=spot%>% count(Track)
+a=a %>%rename(weeks=n)
+a
+```
+
+```{r}
+c <- a %>% ggplot(aes(weeks)) + geom_histogram(bins = 60)
+c<- ggplotly(c)
+c
+```
+```{r}
+summary(a)
+```
+
+```{r}
+a1=a%>% count(weeks)
+a1=a1 %>%rename(nu_songs=n)
+n_distinct(a1$nu_songs)
+
+c1 <- a1 %>% ggplot(aes(nu_songs)) + geom_histogram()
+c1<- ggplotly(c1)
+
+c1
+```
+```{r}
+a2=inner_join(a,a1, by='weeks')
+c2 =a2 %>% ggplot() + geom_point(aes(weeks, nu_songs,color = nu_songs))
+c3= ggplotly(c2)
+c3
+
+```
+
+
+
+
+
+```{r}
+spot2=spot %>% select(c(Track,Artist,Track_Number_on_Album, Duration_MS,Artist_Genres, Artist_Followers))
+```
+
+
+```{r}
+spot3  = a2 %>% 
+  left_join(spot2, by = "Track")
+
+ spot3=spot3[!duplicated(spot3$Track),]
+```
+
+```{r}
+spotcor= spot3 %>% select(weeks, Track_Number_on_Album, Duration_MS,Artist_Followers)
+cor(spotcor)
+
+library(corrplot)
+corrplot(cor(spotcor),method = 'color',order = 'alphabet',addCoef.col = 'black')
+```
+Genras
+```{r}
+library(tidytext)
+#just to get clean vector with genres
+genrs=spot3$Artist_Genres
+genres1=unlist(strsplit(genrs, split = "\\'"))
+genres1=genres1[! genres1 %in% c('[]', '[', ']', ', ')]
+#did it
+
+genres1
+grep("pop", genres1)
+length(grep("melodic rap", genres1))
+#how many times each genre is there
+vec=vector()
+#unique(genrs1)
+for (i in genres1) {
+  #length(grep(i, genrs1))
+  
+ new_value <- sum(i==genres1)
+ vec <- c(vec, new_value)
+
+  
+}
+
+```
+
+```{r}
+dfgenres <- data.frame(genres1,vec)
+dfgenres
+dfgenres=dfgenres[!duplicated(dfgenres$genres1), ]
+```
+
+
+
+```{r}
+Lyriks=read.csv('lyr.csv')
+Lyriks$X2=gsub("[\r\n\"]", "", Lyriks$X2)
+
+Lyriks
+str(Lyriks)
+```
+creating corpus
+```{r}
+library(tm)
+library(NLP)
+dfCorpus <- SimpleCorpus(VectorSource(Lyriks$X2))
+```
+
+Stripping any extra white space:
+```{r}
+dfCorpus <- tm_map(dfCorpus, stripWhitespace)
+```
+
+Transforming everything to lowercase
+```{r}
+dfCorpus <- tm_map(dfCorpus, content_transformer(tolower))
+dfCorpus[[1]]$content
+#install.packages('tm')
+#install.packages('NLP')
+#library(tm)
+```
+Removing numbers
+```{r}
+dfCorpus <- tm_map(dfCorpus, removeNumbers)
+```
+Removing punctuation
+```{r}
+dfCorpus <- tm_map(dfCorpus, removePunctuation)
+```
+Removing stop words
+```{r}
+dfCorpus <- tm_map(dfCorpus, removeWords, stopwords("english"))
+```
+```{r}
+dfCorpus[[1]]$content
+Sent=dfCorpus[[1]]$content
+Sent=unlist(strsplit(Sent,split = " "))
+Sent <- as.data.frame(Sent)
+
+```
+
+Stemming
+```{r}
+dfCorpus <- tm_map(dfCorpus, stemDocument)
+```
+```{r}
+dfCorpus[[1]]$content
+```
+
+Creating a Docoment-Term Matrix (DTM)
+```{r}
+DTM <- DocumentTermMatrix(dfCorpus)
+m <-tidy(DTM)
+m
+v <- as.data.frame(m )
+v
+```
+```{r}
+#install.packages('wordcloud')
+library("wordcloud")
+wordcloud(words = v$term, 
+          freq = v$count, 
+          min.freq = 1,
+          max.words = 100, 
+          random.order = FALSE,
+          rot.per = 0.0, # proportion words with 90 degree rotation
+          colors = brewer.pal(4, "Set1"))
+```
+```{r}
+#install.packages('tidytext')
+library(tidytext)
+#install.packages('EmoLex')
+library('syuzhet')
+
+sent2 <- get_nrc_sentiment(Lyriks$X2)
+
+barplot(colSums(sent2),
+        las = 2,
+        col = rainbow(10),
+        ylab = 'Count',
+        main = 'Sentiment Scores')  
+
+
+
+
+
+
+
+```
+```{r}
+#install.packages('quanteda')
+library(quanteda)
+#install.packages("quanteda.textplots")
+library(quanteda.textplots)
+set.seed(100)
+toks <- genres1 %>%
+    tokens(remove_punct = TRUE) %>%
+    tokens_tolower() %>%
+    tokens_remove(pattern = stopwords("english"), padding = FALSE)
+fcmat <- fcm(toks, context = "window", tri = FALSE)
+feat <- names(topfeatures(fcmat, 100))
+fcm_select(fcmat, pattern = feat) %>% textplot_network(min_freq = 0.1)
+```
+
+
+```{r}
+for i in Track find max(rank)
+```
+

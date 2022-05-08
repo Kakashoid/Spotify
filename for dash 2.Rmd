@@ -1,0 +1,82 @@
+---
+title: "for dash 2"
+output: html_document
+date: '2022-05-05'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(plotly)
+library(corrplot)
+library(tidytext)
+library(tm)
+library(NLP)
+library(wordcloud)
+library(syuzhet)
+library(quanteda)
+library(quanteda.textplots)
+```
+
+```{r}
+test=read.csv('words.csv',header = FALSE)
+```
+```{r}
+sent2 <- get_nrc_sentiment(test$V2)
+
+barplot(colSums(sent2),
+        las = 2,
+        col = rainbow(10),
+        ylab = 'Count',
+        main = 'Sentiment Scores')  
+
+```
+
+```{r}
+scrape=spot3 %>% filter(weeks >= 73)
+```
+
+
+```{r}
+dfCorpuscl <- SimpleCorpus(VectorSource(test$V2))
+dfCorpuscl <- tm_map(dfCorpuscl, content_transformer(tolower))
+dfCorpuscl <- tm_map(dfCorpuscl, removeNumbers)
+dfCorpuscl <- tm_map(dfCorpuscl, removePunctuation)
+dfCorpuscl <- tm_map(dfCorpuscl, removeWords, stopwords("english"))
+DTMcl <- DocumentTermMatrix(dfCorpuscl)
+mcl <-tidy(DTMcl)
+vcl <- as.data.frame(mcl)
+vcl
+
+wordcloud(words = vcl$term, 
+          freq = vcl$count, 
+          min.freq = 1,
+          max.words = 100, 
+          random.order = FALSE,
+          rot.per = 0.0, # proportion words with 90 degree rotation
+          colors = brewer.pal(4, "Set1"))
+```
+```{r}
+
+set.seed(50)
+toks <- test$V2 %>%
+    tokens(remove_punct = TRUE) %>%
+    tokens_tolower() %>%
+    tokens_remove(pattern = stopwords("english"), padding = FALSE)
+fcmat <- fcm(toks, context = "window", tri = FALSE)
+feat <- names(topfeatures(fcmat, 50))
+fcm_select(fcmat, pattern = feat) %>% textplot_network(min_freq = 0.5)
+
+```
+```{r}
+#install.packages('LDAvis')
+library(tm)
+library(LDAvis)
+theta <- t(apply(test$V2 + alpha, 2, function(x) x/sum(x)))
+```
+
